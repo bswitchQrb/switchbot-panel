@@ -2,7 +2,7 @@
 // トークンとシークレットはサーバー側だけで持ち、ブラウザには渡さない。
 import { createServer } from 'node:http';
 import { createHmac, randomUUID } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, chmod } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,8 +25,18 @@ if (!DEMO && (!TOKEN || !SECRET)) {
   console.error('SWITCHBOT_TOKEN と SWITCHBOT_SECRET を .env に設定してください（.env.example を参照）');
   process.exit(1);
 }
+// DNS リバインディング対策：Host ヘッダーがこの一覧にないリクエストは拒否する。
+// 悪意のあるサイトが自分のドメインを 127.0.0.1 などに向け直すと、ブラウザからは同一オリジン扱いになり
+// Origin チェックをすり抜けてしまうため、Host で「どの名前でアクセスされたか」を確かめる。
+const withPort = h => (/:\d+$/.test(h) ? h : `${h}:${PORT}`);
+const ALLOWED_HOSTS = new Set([
+  HOST, 'localhost', '127.0.0.1', '[::1]',
+  ...(process.env.ALLOWED_HOSTS || '').split(',').map(h => h.trim()).filter(Boolean),
+].map(withPort));
+
 if (HOST === '0.0.0.0' || HOST === '::') {
   console.warn('⚠️  HOST が全インターフェースになっています。同じネットワーク上の誰でも家電を操作できます。');
+  console.warn('   他の端末から開く場合は、そのときに使うアドレスを ALLOWED_HOSTS に指定してください。');
 }
 
 function authHeaders() {
@@ -43,7 +53,13 @@ function authHeaders() {
 }
 
 async function switchbot(path, init = {}) {
-  const res = await fetch(API + path, { ...init, headers: authHeaders() });
+  let res;
+  try {
+    res = await fetch(API + path, { ...init, headers: authHeaders(), signal: AbortSignal.timeout(10_000) });
+  } catch (e) {
+    if (e.name === 'TimeoutError') throw Object.assign(new Error('SwitchBot API がタイムアウトしました'), { status: 504 });
+    throw Object.assign(new Error(`SwitchBot API に接続できません: ${e.message}`), { status: 502 });
+  }
   const body = await res.json().catch(() => ({}));
   // SwitchBot は HTTP 200 でも statusCode で失敗を返すことがある（100 が成功）
   if (!res.ok || body.statusCode !== 100) {
@@ -73,6 +89,8 @@ let lastCommands = {};
 if (DEMO) lastCommands = demo.demoLastCommands();
 else {
   try { lastCommands = JSON.parse(await readFile(statePath, 'utf8')); } catch { /* 初回は空 */ }
+  // デバイス ID や操作時刻が入るので、本人だけが読めるようにしておく
+  await chmod(statePath, 0o600).catch(() => {});
 }
 function rememberCommand(id, command, parameter) {
   const prev = lastCommands[id] || {};
@@ -83,7 +101,7 @@ function rememberCommand(id, command, parameter) {
   else if (command === 'setAll') power = String(parameter).split(',')[3];
   const ac = command === 'setAll' ? parameter : prev.ac;
   lastCommands[id] = { command, parameter, power, ac, at: Date.now() };
-  if (!DEMO) writeFile(statePath, JSON.stringify(lastCommands, null, 2)).catch(e => console.error('state.json 保存失敗', e.message));
+  if (!DEMO) writeFile(statePath, JSON.stringify(lastCommands, null, 2), { mode: 0o600 }).catch(e => console.error('state.json 保存失敗', e.message));
   return lastCommands[id];
 }
 
@@ -98,7 +116,8 @@ async function readJson(req) {
     raw += chunk;
     if (raw.length > 10_000) throw Object.assign(new Error('body too large'), { status: 413 });
   }
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { throw Object.assign(new Error('リクエストの JSON が不正です'), { status: 400 }); }
 }
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -113,14 +132,17 @@ const STATIC_FILES = {
 };
 
 const server = createServer(async (req, res) => {
+  if (!ALLOWED_HOSTS.has(req.headers.host)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Forbidden host. 必要なら ALLOWED_HOSTS に追加してください。\n');
+  }
   const url = new URL(req.url, `http://${req.headers.host}`);
   const parts = url.pathname.split('/').filter(Boolean);
 
   try {
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
       // og:image などは絶対 URL が必要なので、アクセスされたホストで埋め込む
-      const host = /^[A-Za-z0-9.\-:[\]]+$/.test(req.headers.host || '') ? req.headers.host : `${HOST}:${PORT}`;
-      const html = (await readFile(join(__dirname, 'public', 'index.html'), 'utf8')).replaceAll('__ORIGIN__', `http://${host}`);
+      const html = (await readFile(join(__dirname, 'public', 'index.html'), 'utf8')).replaceAll('__ORIGIN__', `http://${req.headers.host}`);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
       return res.end(html);
     }

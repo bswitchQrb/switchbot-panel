@@ -20,6 +20,7 @@ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH RE
 ## フォント
 
 以下のフォントを Google Fonts から読み込んでいます（リポジトリには含めていません）。
+そのため、画面を開くと Google のサーバーにリクエストが送られます。
 
 - [Inter](https://github.com/rsms/inter) — SIL Open Font License 1.1
 - [Noto Sans JP](https://fonts.google.com/noto/specimen/Noto+Sans+JP) — SIL Open Font License 1.1
