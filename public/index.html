@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwitchBot Panel</title>
+<meta name="description" content="SwitchBot をブラウザから操作するセルフホスト Web パネル">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SwitchBot Panel">
+<meta property="og:description" content="SwitchBot をブラウザから操作するセルフホスト Web パネル">
+<meta property="og:url" content="__ORIGIN__/">
+<meta property="og:image" content="__ORIGIN__/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="__ORIGIN__/og.png">
+<meta name="theme-color" content="#f3f1ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111113" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3f1ee; --surface: #ffffff; --surface-2: #f4f2ef; --text: #1c1b1a; --muted: #7a766f;
+    --line: #e8e4de; --shadow: 0 1px 2px rgba(28,27,26,.04), 0 8px 24px rgba(28,27,26,.06);
+    --amber: #f2a20c; --cyan: #1a9ee6; --orange: #f0652f; --teal: #14b8a6; --green: #1fa855;
+    --red: #e5484d; --violet: #8b5cf6; --indigo: #6366f1; --slate: #8a94a6; --blue: #3b82f6;
+    --on-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111113; --surface: #1b1b1e; --surface-2: #26262a; --text: #f2f1ef; --muted: #9b9891;
+      --line: #2c2c31; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+      --amber: #f7b731; --cyan: #38b6f5; --orange: #ff7a45; --teal: #2dd4bf; --green: #34d07a;
+      --red: #ff6369; --violet: #a78bfa; --indigo: #818cf8; --slate: #9aa4b5; --blue: #60a5fa;
+      --on-text: #111113;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "Inter", "Noto Sans JP", -apple-system, "Hiragino Sans", "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.5; font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+
+  /* ---- header ---- */
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 22px; padding-bottom: 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; color: var(--muted); }
+  .brand-logo { width: 26px; height: 26px; border-radius: 7px; display: block; }
+  .demo-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px;
+    color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent);
+  }
+  .head-right { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+    display: grid; place-items: center; cursor: pointer; color: var(--text);
+  }
+  .icon-btn:hover { background: var(--surface-2); }
+  .icon-btn.spin .i { animation: spin .9s linear infinite; }
+
+  /* ---- hero ---- */
+  .hero { display: grid; grid-template-columns: minmax(240px, 1fr) 2.4fr; gap: 20px; align-items: stretch; margin: 18px 0 8px; }
+  .greet { display: flex; flex-direction: column; justify-content: center; padding: 8px 4px; }
+  .clock { font-size: 64px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
+  .date { color: var(--muted); margin-top: 10px; font-size: 15px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 16px 18px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  }
+  .stat-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .stat-label .i { color: var(--tone); }
+  .stat-value { font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-value small { font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .stat-note { font-size: 12.5px; color: var(--muted); }
+  .alerts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .alert {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 13px;
+    background: color-mix(in srgb, var(--red) 12%, var(--surface)); color: var(--red);
+    border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+  }
+
+  /* ---- sections ---- */
+  /* カテゴリを横に並べて折り返す（PC の横長画面を埋める） */
+  main { padding-bottom: 64px; display: flex; flex-wrap: wrap; column-gap: 28px; align-items: flex-start; }
+  main > section { flex: 0 1 auto; max-width: 100%; }
+  main > .empty { flex-basis: 100%; }
+  .section-title { display: flex; align-items: baseline; gap: 8px; margin: 32px 0 12px; font-size: 17px; font-weight: 700; }
+  .section-title span { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(var(--cols, 4), 210px); gap: 14px; }
+
+  /* ---- tile ---- */
+  .tile {
+    --tone: var(--slate);
+    position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+    padding: 18px; min-height: 176px; display: flex; flex-direction: column; gap: 14px;
+    box-shadow: var(--shadow); transition: background .25s, border-color .25s, transform .15s;
+  }
+  .tile.wide { grid-column: span 2; }
+  .tile.on {
+    background: color-mix(in srgb, var(--tone) 11%, var(--surface));
+    border-color: color-mix(in srgb, var(--tone) 38%, var(--line));
+  }
+  .tile-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .bubble {
+    width: 46px; height: 46px; border-radius: 15px; display: grid; place-items: center;
+    background: var(--surface-2); color: var(--muted); transition: background .25s, color .25s, box-shadow .25s;
+  }
+  .tile.on .bubble { background: var(--tone); color: var(--on-text); box-shadow: 0 6px 18px color-mix(in srgb, var(--tone) 40%, transparent); }
+  .tile.busy .bubble { animation: pulse 1s ease-in-out infinite; }
+  .tile-name { font-weight: 700; font-size: 16px; overflow-wrap: anywhere; }
+  .tile-sub { font-size: 13px; color: var(--muted); margin-top: 2px; min-height: 1.5em; }
+  .tile.on .tile-sub { color: color-mix(in srgb, var(--tone) 70%, var(--text)); }
+  .tile-body { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  .batt { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+  .batt.low { color: var(--red); font-weight: 600; }
+
+  /* ---- controls ---- */
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row.split { justify-content: space-between; }
+  .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+  .seg button {
+    border: 0; background: transparent; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+    font-size: 13.5px; font-weight: 600; color: var(--muted); white-space: nowrap; min-height: 34px;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .seg.power button.active.is-on { background: var(--tone); color: var(--on-text); }
+  .seg.full { display: flex; }
+  .seg.full button { flex: 1; }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 9px 12px;
+    font-weight: 600; font-size: 14px; cursor: pointer; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--tone); border-color: transparent; color: var(--on-text); }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .btn.danger { background: var(--red); border-color: transparent; color: #fff; }
+  .btn.block { flex: 1; }
+  .btn:disabled, .seg button:disabled { opacity: .5; cursor: progress; }
+  .pad { display: inline-flex; align-items: center; gap: 4px; padding: 3px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+  .pad-label { font-size: 12.5px; color: var(--muted); padding: 0 8px 0 6px; display: inline-flex; align-items: center; gap: 4px; }
+  .pad button {
+    width: 36px; height: 36px; border-radius: 11px; border: 0; background: var(--surface); cursor: pointer;
+    display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .pad button:hover { background: var(--bg); }
+  .temp { font-size: 22px; font-weight: 600; min-width: 64px; text-align: center; letter-spacing: -.02em; }
+  .bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--tone); border-radius: inherit; transition: width .4s; }
+  .hint { font-size: 12px; color: var(--muted); }
+
+  .i { display: inline-grid; place-items: center; }
+  .i svg { width: 20px; height: 20px; }
+  .bubble .i svg { width: 24px; height: 24px; }
+  .stat-label .i svg, .batt .i svg, .alert .i svg, .pad-label .i svg { width: 15px; height: 15px; }
+
+  .empty { color: var(--muted); padding: 40px 0; }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 10px);
+    background: var(--text); color: var(--bg); border-radius: 999px; padding: 10px 18px;
+    font-size: 14px; font-weight: 500; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+    max-width: calc(100% - 32px); box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.err { background: var(--red); color: #fff; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  @media (max-width: 1000px) {
+    .hero { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .clock { font-size: 52px; }
+  }
+  @media (max-width: 1000px) {
+    main > section { flex-basis: 100%; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 16px; }
+    .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .tile.wide { grid-column: 1 / -1; }
+    .stat-value { font-size: 24px; }
+    .clock { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><img class="brand-logo" src="/favicon.svg" alt="">SwitchBot Panel</div>
+    <div class="head-right"><span id="updated"></span><button class="icon-btn" id="refresh" aria-label="再読み込み"></button></div>
+  </header>
+  <section class="hero" id="hero"></section>
+  <div id="alerts" class="alerts"></div>
+  <main id="app"><p class="empty">読み込み中…</p></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- icons (stroke 24x24) ----------
+// 多くは Lucide (https://lucide.dev, ISC License) のアイコンをもとにしています。
+// Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT).
+// All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+// ライセンス全文は THIRD_PARTY_NOTICES.md を参照。
+const ICONS = {
+  bulb: '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  snow: '<path d="M2 12h20M12 2v20M20 16l-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4"/>',
+  flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+  droplet: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5S5 13 5 15a7 7 0 0 0 7 7z"/>',
+  wind: '<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>',
+  sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17v4M17 19h4"/>',
+  fan: '<circle cx="12" cy="12" r="2"/><path d="M12 10c-.6-3.6.6-7 3-7s3.4 3.6-1.3 7.3"/><path d="M13.9 12.9c2.8 2.3 4.2 5.6 2.5 7.3s-4.8-.3-5.2-6"/><path d="M10.1 12.9c-3.4 1.3-7 .6-7.5-1.8s3-4.1 7.6-2"/>',
+  tv: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="m17 2-5 5-5-5"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  unlock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+  hand: '<path d="M9 11V5a2 2 0 0 1 4 0v5"/><path d="M13 10V9a2 2 0 0 1 4 0v2"/><path d="M17 11a2 2 0 0 1 4 0v3a8 8 0 0 1-8 8h-1a7 7 0 0 1-6-3.4L4 15a2 2 0 0 1 3.4-2L9 15"/>',
+  curtain: '<path d="M3 3h18"/><path d="M5 3v18c3 0 5.5-6 5.5-18"/><path d="M19 3v18c-3 0-5.5-6-5.5-18"/>',
+  thermo: '<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>',
+  plug: '<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/>',
+  power: '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  battery: '<rect x="2" y="7" width="16" height="10" rx="2"/><path d="M22 11v2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
+  up: '<path d="m18 15-6-6-6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  volume: '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>',
+  alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+};
+
+function icon(name) {
+  const s = document.createElement('span');
+  s.className = 'i';
+  s.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+  return s;
+}
+
+function h(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') n.className = v;
+    else if (k === 'style') n.style.cssText = v;
+    else if (k === 'text') n.textContent = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
+  return n;
+}
+
+// ---------- state ----------
+const S = { devices: [], remotes: [], status: {}, last: {}, ac: {}, busy: new Set(), armed: null, updatedAt: null, loaded: false, error: null, config: { unlockEnabled: true } };
+const STATUS_RE = /Bot|Plug|Curtain|Meter|WoIOSensor|Hub 2|Hub 3|Bulb|Strip|Ceiling|Lock|Keypad|Humidifier|Blind|Fan|Purifier/;
+const SECTIONS = ['照明', '空調', 'エンタメ', '窓まわり', '玄関', 'その他'];
+const LOCK = { locked: '施錠中', unlocked: '解錠中', jammed: 'ジャム' };
+const DOOR = { closed: '閉', opened: '開' };
+const MODES = [
+  ['1', '自動', 'sparkle', 'var(--green)'],
+  ['2', '冷房', 'snow', 'var(--cyan)'],
+  ['3', '除湿', 'droplet', 'var(--teal)'],
+  ['4', '送風', 'wind', 'var(--slate)'],
+  ['5', '暖房', 'flame', 'var(--orange)'],
+];
+const FANS = [['1', '自動'], ['2', '弱'], ['3', '中'], ['4', '強']];
+
+// ---------- utils ----------
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(msg, kind = '') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = `toast show ${kind}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.className = 'toast'), 2200);
+}
+
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts), now = new Date();
+  const hm = d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === now.toDateString() ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
+
+async function api(path, init) {
+  const res = await fetch(path, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ---------- data ----------
+async function loadAll(refresh = false) {
+  const btn = $('refresh');
+  btn.classList.add('spin');
+  try {
+    const [dev, last, config] = await Promise.all([api(`/api/devices${refresh ? '?refresh' : ''}`), api('/api/last'), api('/api/config')]);
+    S.config = config;
+    if (config.demo && !document.querySelector('.demo-badge')) {
+      document.querySelector('.brand').append(h('span', { class: 'demo-badge', text: 'DEMO', title: 'ダミーデータで動作中（実際の家電は動きません）' }));
+    }
+    S.devices = dev.deviceList || [];
+    S.remotes = dev.infraredRemoteList || [];
+    S.last = last;
+    S.loaded = true;
+    S.error = null;
+    render();
+    await loadStatuses();
+  } catch (e) {
+    S.error = e.message;
+    render();
+  } finally {
+    btn.classList.remove('spin');
+  }
+}
+
+async function loadStatuses() {
+  const targets = S.devices.filter(d => STATUS_RE.test(d.deviceType || ''));
+  await Promise.all(targets.map(async d => {
+    try { S.status[d.deviceId] = await api(`/api/devices/${d.deviceId}/status`); }
+    catch (e) { S.status[d.deviceId] = { error: e.message }; }
+  }));
+  S.updatedAt = Date.now();
+  render();
+}
+
+async function refreshOne(id) {
+  try { S.status[id] = await api(`/api/devices/${id}/status`); render(); } catch { /* 次の自動更新に任せる */ }
+}
+
+async function send(id, command, parameter = 'default') {
+  S.busy.add(id);
+  render();
+  try {
+    const r = await api(`/api/devices/${id}/commands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command, parameter }),
+    });
+    S.last[id] = r.last;
+    toast('送信しました');
+    const dev = S.devices.find(d => d.deviceId === id);
+    if (dev) {
+      setTimeout(() => refreshOne(id), 2000);
+      if (/Curtain|Blind|Lock/.test(dev.deviceType)) setTimeout(() => refreshOne(id), 10000);
+    }
+  } catch (e) {
+    toast(`失敗: ${e.message}`, 'err');
+  } finally {
+    S.busy.delete(id);
+    render();
+  }
+}
+
+// ---------- classification ----------
+function sectionOf(item) {
+  if (item.remoteType) {
+    const t = item.remoteType;
+    if (/Air Conditioner|Fan/.test(t)) return '空調';
+    if (/Light/.test(t)) return '照明';
+    if (/TV|IPTV|Set Top Box|Projector|Speaker|DVD/.test(t)) return 'エンタメ';
+    return 'その他';
+  }
+  const t = item.deviceType || '';
+  if (/Keypad|Hub|Meter|WoIOSensor|Remote|Contact|Motion/.test(t)) return null; // 操作するものがないので非表示
+  if (/Lock/.test(t)) return '玄関';
+  if (t === 'Bot') return /玄関|エントランス|ドア/.test(item.deviceName) ? '玄関' : 'その他';
+  if (/Curtain|Blind|Roller/.test(t)) return '窓まわり';
+  if (/Bulb|Strip|Ceiling|Light/.test(t)) return '照明';
+  if (/Humidifier|Fan|Purifier/.test(t)) return '空調';
+  return 'その他';
+}
+
+// ---------- building blocks ----------
+function battery(s) {
+  if (!s || s.battery == null) return null;
+  return h('span', { class: `batt${s.battery < 20 ? ' low' : ''}`, title: '電池残量' }, icon('battery'), `${s.battery}%`);
+}
+
+function tile({ id, name, ic, tone, on, sub, wide, body, badge }) {
+  return h('article', { class: `tile${on ? ' on' : ''}${wide ? ' wide' : ''}${S.busy.has(id) ? ' busy' : ''}`, style: `--tone:${tone}` },
+    h('div', { class: 'tile-top' }, h('div', { class: 'bubble' }, icon(ic)), badge),
+    h('div', {}, h('div', { class: 'tile-name', text: name }), h('div', { class: 'tile-sub', text: sub || '' })),
+    h('div', { class: 'tile-body' }, body));
+}
+
+function powerSeg(id, power, onPick, full = true) {
+  const busy = S.busy.has(id);
+  return h('div', { class: `seg power${full ? ' full' : ''}` },
+    h('button', { class: power === 'on' ? 'active is-on' : '', disabled: busy, onclick: () => onPick('on') }, 'ON'),
+    h('button', { class: power === 'off' ? 'active' : '', disabled: busy, onclick: () => onPick('off') }, 'OFF'));
+}
+
+function lastSub(id, fallback = '操作履歴なし') {
+  const l = S.last[id];
+  if (!l?.power) return fallback;
+  return `${l.power === 'on' ? 'ON' : 'OFF'} · ${fmtTime(l.at)}`;
+}
+
+// ---------- infrared tiles ----------
+function irLightIcon(name) {
+  if (/常夜|ナイト|night/i.test(name)) return 'moon';
+  if (/全灯|全光/.test(name)) return 'sun';
+  return 'bulb';
+}
+
+function acDraft(id) {
+  if (!S.ac[id]) {
+    const p = (S.last[id]?.ac || '26,2,1,off').split(',');
+    S.ac[id] = { temp: Number(p[0]) || 26, mode: p[1] || '2', fan: p[2] || '1' };
+  }
+  return S.ac[id];
+}
+const acTimers = {};
+function acChange(id, patch) {
+  Object.assign(acDraft(id), patch);
+  render();
+  // 運転中なら変更をすぐ反映（連打してもまとめて 1 回送る）
+  if (S.last[id]?.power === 'on') {
+    clearTimeout(acTimers[id]);
+    acTimers[id] = setTimeout(() => {
+      const d = acDraft(id);
+      send(id, 'setAll', `${d.temp},${d.mode},${d.fan},on`);
+    }, 700);
+  }
+}
+
+function acTile(r) {
+  const id = r.deviceId, d = acDraft(id), l = S.last[id];
+  const mode = MODES.find(m => m[0] === d.mode) || MODES[1];
+  const running = l?.power === 'on';
+  const fanLabel = FANS.find(f => f[0] === d.fan)?.[1] ?? '';
+  const sub = running ? `${mode[1]} ${d.temp}℃ · 風量${fanLabel} · ${fmtTime(l.at)}` : (l?.power === 'off' ? `停止中 · ${fmtTime(l.at)}` : '操作履歴なし');
+  const busy = S.busy.has(id);
+  const param = p => `${d.temp},${d.mode},${d.fan},${p}`;
+
+  return tile({
+    id, name: r.deviceName, ic: mode[2], tone: mode[3], on: running, wide: true, sub,
+    body: [
+      h('div', { class: 'seg full' }, MODES.map(([v, label]) =>
+        h('button', { class: v === d.mode ? 'active' : '', onclick: () => acChange(id, { mode: v }) }, label))),
+      h('div', { class: 'row split' },
+        h('div', { class: 'pad' },
+          h('button', { 'aria-label': '温度を下げる', onclick: () => acChange(id, { temp: Math.max(16, d.temp - 1) }) }, icon('minus')),
+          h('span', { class: 'temp', text: `${d.temp}℃` }),
+          h('button', { 'aria-label': '温度を上げる', onclick: () => acChange(id, { temp: Math.min(30, d.temp + 1) }) }, icon('plus'))),
+        h('div', { class: 'seg' },
+          h('span', { class: 'pad-label' }, icon('fan'), '風量'),
+          FANS.map(([v, label]) => h('button', { class: v === d.fan ? 'active' : '', onclick: () => acChange(id, { fan: v }) }, label)))),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary block', disabled: busy, onclick: () => send(id, 'setAll', param('on')) }, icon('power'), running ? 'この設定で送信' : '運転'),
+        h('button', { class: 'btn block', disabled: busy, onclick: () => send(id, 'setAll', param('off')) }, '停止')),
+    ],
+  });
+}
+
+function tvTile(r) {
+  const id = r.deviceId, l = S.last[id];
+  const c = cmd => () => send(id, cmd);
+  return tile({
+    id, name: r.deviceName, ic: 'tv', tone: 'var(--indigo)', on: l?.power === 'on', wide: true, sub: lastSub(id),
+    body: [
+      h('div', { class: 'row split' },
+        powerSeg(id, l?.power, v => send(id, v === 'on' ? 'turnOn' : 'turnOff'), false),
+        h('div', { class: 'row' },
+          h('div', { class: 'pad' },
+            h('span', { class: 'pad-label' }, icon('volume'), '音量'),
+            h('button', { 'aria-label': '音量を下げる', onclick: c('volumeSub') }, icon('minus')),
+            h('button', { 'aria-label': '音量を上げる', onclick: c('volumeAdd') }, icon('plus'))),
+          h('div', { class: 'pad' },
+            h('span', { class: 'pad-label' }, 'CH'),
+            h('button', { 'aria-label': 'チャンネルを下げる', onclick: c('channelSub') }, icon('down')),
+            h('button', { 'aria-label': 'チャンネルを上げる', onclick: c('channelAdd') }, icon('up'))))),
+    ],
+  });
+}
+
+function irTile(r) {
+  const id = r.deviceId, t = r.remoteType || '', l = S.last[id];
+  if (/Air Conditioner/.test(t)) return acTile(r);
+  if (/TV|IPTV|Set Top Box/.test(t)) return tvTile(r);
+  const isLight = /Light/.test(t);
+  const isFan = /Fan/.test(t);
+  return tile({
+    id, name: r.deviceName,
+    ic: isLight ? irLightIcon(r.deviceName) : isFan ? 'fan' : 'power',
+    tone: isLight ? 'var(--amber)' : isFan ? 'var(--teal)' : 'var(--blue)',
+    on: l?.power === 'on', sub: lastSub(id),
+    body: powerSeg(id, l?.power, v => send(id, v === 'on' ? 'turnOn' : 'turnOff')),
+  });
+}
+
+// ---------- physical device tiles ----------
+function lockTile(d) {
+  const id = d.deviceId, s = S.status[id] || {};
+  const locked = s.lockState === 'locked';
+  const armed = S.armed === id;
+  const busy = S.busy.has(id);
+  const sub = s.error ? '状態を取得できません' : s.lockState ? `${LOCK[s.lockState] ?? s.lockState} · ドア${DOOR[s.doorState] ?? '—'}` : '状態を取得中…';
+  return tile({
+    id, name: d.deviceName, ic: s.lockState && !locked ? 'unlock' : 'lock',
+    tone: s.lockState ? (locked ? 'var(--green)' : 'var(--red)') : 'var(--slate)',
+    on: !!s.lockState, sub, badge: battery(s),
+    body: h('div', { class: 'row' },
+      h('button', { class: `btn block${locked ? '' : ' primary'}`, disabled: busy, onclick: () => send(id, 'lock') }, icon('lock'), '施錠'),
+      S.config.unlockEnabled && h('button', {
+        class: `btn block${armed ? ' danger' : ''}`, disabled: busy,
+        onclick: () => {
+          // 誤操作防止：1 回目で確認状態、4 秒以内にもう一度押すと解錠
+          if (armed) { S.armed = null; send(id, 'unlock'); return; }
+          S.armed = id; render();
+          setTimeout(() => { if (S.armed === id) { S.armed = null; render(); } }, 4000);
+        },
+      }, icon('unlock'), armed ? 'もう一度で解錠' : '解錠')),
+  });
+}
+
+function curtainTile(d) {
+  const id = d.deviceId, s = S.status[id] || {};
+  const open = s.slidePosition != null ? 100 - s.slidePosition : null; // slidePosition: 0 = 全開
+  const busy = S.busy.has(id);
+  let sub = '状態を取得中…';
+  if (s.error) sub = '状態を取得できません';
+  else if (s.moving) sub = '動作中…';
+  else if (open != null) sub = open >= 95 ? '全開' : open <= 5 ? '閉まっています' : `${open}% 開いています`;
+  return tile({
+    id, name: d.deviceName.trim(), ic: 'curtain', tone: 'var(--violet)', on: open != null && open > 5, sub, badge: battery(s),
+    body: [
+      h('div', { class: 'bar' }, h('i', { style: `width:${open ?? 0}%` })),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn block primary', disabled: busy, onclick: () => send(id, 'turnOn') }, '開ける'),
+        h('button', { class: 'btn block', disabled: busy, onclick: () => send(id, 'turnOff') }, '閉める')),
+    ],
+  });
+}
+
+function botTile(d) {
+  const id = d.deviceId, s = S.status[id] || {}, l = S.last[id];
+  const pressMode = s.deviceMode === 'pressMode';
+  const sub = l?.at ? `最後に押した: ${fmtTime(l.at)}` : pressMode ? '押すモード' : (s.power ? `電源 ${s.power}` : '');
+  const busy = S.busy.has(id);
+  return tile({
+    id, name: d.deviceName, ic: 'hand', tone: 'var(--blue)', on: !pressMode && s.power === 'on', sub, badge: battery(s),
+    body: pressMode || !s.deviceMode
+      ? h('button', { class: 'btn primary block', disabled: busy, onclick: () => send(id, 'press') }, '押す')
+      : powerSeg(id, s.power, v => send(id, v === 'on' ? 'turnOn' : 'turnOff')),
+  });
+}
+
+function switchTile(d) {
+  const id = d.deviceId, s = S.status[id] || {}, t = d.deviceType || '';
+  const isLight = /Bulb|Strip|Ceiling|Light/.test(t);
+  return tile({
+    id, name: d.deviceName, ic: isLight ? 'bulb' : /Plug/.test(t) ? 'plug' : /Fan/.test(t) ? 'fan' : 'power',
+    tone: isLight ? 'var(--amber)' : 'var(--blue)', on: s.power === 'on',
+    sub: s.error ? '状態を取得できません' : s.power ? (s.power === 'on' ? 'ON' : 'OFF') : '状態を取得中…', badge: battery(s),
+    body: powerSeg(id, s.power, v => send(id, v === 'on' ? 'turnOn' : 'turnOff')),
+  });
+}
+
+function deviceTile(d) {
+  const t = d.deviceType || '';
+  if (/Lock/.test(t)) return lockTile(d);
+  if (/Curtain|Blind|Roller/.test(t)) return curtainTile(d);
+  if (t === 'Bot') return botTile(d);
+  return switchTile(d);
+}
+
+// ---------- hero ----------
+function stat({ ic, tone, label, value, unit, note }) {
+  return h('div', { class: 'stat', style: `--tone:${tone}` },
+    h('div', { class: 'stat-label' }, icon(ic), label),
+    h('div', { class: 'stat-value' }, value ?? '—', unit ? h('small', { text: unit }) : null),
+    h('div', { class: 'stat-note', text: note || '' }));
+}
+
+function greeting(hour) {
+  if (hour >= 5 && hour < 10) return 'おはようございます';
+  if (hour >= 10 && hour < 17) return 'こんにちは';
+  return 'こんばんは';
+}
+
+function renderClock() {
+  const now = new Date();
+  const c = document.querySelector('.clock');
+  const d = document.querySelector('.date');
+  if (c) c.textContent = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  if (d) d.textContent = `${now.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })} · ${greeting(now.getHours())}`;
+}
+
+function renderHero() {
+  const meter = S.devices.find(d => /Meter/.test(d.deviceType || '')) || S.devices.find(d => /WoIOSensor/.test(d.deviceType || ''));
+  const ms = meter ? S.status[meter.deviceId] || {} : {};
+  const lock = S.devices.find(d => /Lock/.test(d.deviceType || ''));
+  const ls = lock ? S.status[lock.deviceId] || {} : {};
+  const curtain = S.devices.find(d => /Curtain|Blind/.test(d.deviceType || ''));
+  const cs = curtain ? S.status[curtain.deviceId] || {} : {};
+  const open = cs.slidePosition != null ? 100 - cs.slidePosition : null;
+  const hum = ms.humidity;
+
+  const stats = [];
+  if (meter) {
+    stats.push(stat({ ic: 'thermo', tone: 'var(--orange)', label: '室温', value: ms.temperature?.toFixed?.(1), unit: '℃', note: meter.deviceName }));
+    stats.push(stat({ ic: 'droplet', tone: 'var(--cyan)', label: '湿度', value: hum, unit: '%', note: hum == null ? '' : hum < 40 ? '乾燥ぎみ' : hum > 65 ? '湿度高め' : '快適' }));
+  }
+  if (lock) stats.push(stat({ ic: ls.lockState === 'unlocked' ? 'unlock' : 'lock', tone: ls.lockState === 'unlocked' ? 'var(--red)' : 'var(--green)', label: '玄関', value: LOCK[ls.lockState] ?? (ls.lockState || null), note: ls.doorState ? `ドア${DOOR[ls.doorState] ?? ls.doorState}` : '' }));
+  if (curtain) stats.push(stat({ ic: 'curtain', tone: 'var(--violet)', label: 'カーテン', value: open == null ? null : open <= 5 ? '閉' : open >= 95 ? '全開' : open, unit: open != null && open > 5 && open < 95 ? '% 開' : '', note: cs.moving ? '動作中' : '' }));
+
+  $('hero').replaceChildren(
+    h('div', { class: 'greet' }, h('div', { class: 'clock' }), h('div', { class: 'date' })),
+    h('div', { class: 'stats' }, stats));
+  renderClock();
+
+  // 電池残量が少ないデバイス
+  const low = S.devices.filter(d => S.status[d.deviceId]?.battery != null && S.status[d.deviceId].battery < 20);
+  $('alerts').replaceChildren(...low.map(d => h('span', { class: 'alert' }, icon('alert'), `${d.deviceName} の電池 ${S.status[d.deviceId].battery}%`)));
+}
+
+// ---------- render ----------
+function render() {
+  $('updated').textContent = S.updatedAt ? `${fmtTime(S.updatedAt)} 更新` : '';
+  if (S.error && !S.loaded) {
+    $('app').replaceChildren(h('p', { class: 'empty', text: `読み込みに失敗しました: ${S.error}` }));
+    return;
+  }
+  if (!S.loaded) return;
+  renderHero();
+
+  const groups = Object.fromEntries(SECTIONS.map(s => [s, []]));
+  for (const r of S.remotes) groups[sectionOf(r)]?.push(irTile(r));
+  for (const d of S.devices) {
+    const sec = sectionOf(d);
+    if (sec) groups[sec].push(deviceTile(d));
+  }
+
+  // セクションの幅はタイル数ぶん（横長タイルは 2 列分）、最大 4 列
+  const cols = tiles => Math.min(4, tiles.reduce((n, t) => n + (t.classList.contains('wide') ? 2 : 1), 0));
+  const nodes = SECTIONS.filter(s => groups[s].length).map(s =>
+    h('section', {},
+      h('h2', { class: 'section-title' }, s, h('span', { text: `${groups[s].length}` })),
+      h('div', { class: 'grid', style: `--cols:${cols(groups[s])}` }, groups[s])));
+
+  $('app').replaceChildren(...(nodes.length ? nodes
+    : [h('p', { class: 'empty', text: 'デバイスが見つかりませんでした。SwitchBot アプリでクラウドサービスが有効か確認してね。' })]));
+}
+
+// ---------- boot ----------
+$('refresh').append(icon('refresh'));
+$('refresh').addEventListener('click', () => loadAll(true));
+setInterval(renderClock, 15_000);
+// 状態は 5 分ごとに自動更新（API は 1 日 10,000 回まで）
+setInterval(() => { if (!document.hidden && S.loaded) loadStatuses(); }, 5 * 60_000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && S.loaded && Date.now() - (S.updatedAt || 0) > 2 * 60_000) loadStatuses();
+});
+loadAll();
+</script>
+</body>
+</html>
