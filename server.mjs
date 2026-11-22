@@ -18,6 +18,9 @@ const PORT = Number(process.env.PORT || 8787);
 const API = 'https://api.switch-bot.com/v1.1';
 // 1 にするとスマートロックの解錠コマンドをサーバー側で拒否する
 const UNLOCK_ENABLED = process.env.DISABLE_UNLOCK !== '1';
+// 画面にもサーバーにも出さないデバイス（デバイス ID または名前をカンマ区切り）。
+// 一覧から外すだけでなく、状態取得・操作もサーバー側で拒否する。
+const HIDDEN_DEVICES = new Set((process.env.HIDDEN_DEVICES || '').split(',').map(s => s.trim()).filter(Boolean));
 // 1 にするとダミーデータで動く（トークン不要・実際の家電には一切アクセスしない）
 const DEMO = process.env.DEMO === '1';
 
@@ -71,16 +74,31 @@ async function switchbot(path, init = {}) {
   return body.body;
 }
 
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
 const demo = DEMO ? await import('./demo.mjs') : null;
 const backend = DEMO ? demo.demoApi : switchbot;
 
 // デバイス一覧は 1 分キャッシュ（API は 1 日 10,000 回まで）
-let deviceCache = { at: 0, data: null };
+let deviceCache = { at: 0, data: null, ids: new Set() };
+const isVisible = d => !HIDDEN_DEVICES.has(d.deviceId) && !HIDDEN_DEVICES.has((d.deviceName || '').trim());
 async function getDevices(force) {
   if (!force && deviceCache.data && Date.now() - deviceCache.at < 60_000) return deviceCache.data;
-  const data = await backend('/devices');
-  deviceCache = { at: Date.now(), data };
+  const raw = await backend('/devices');
+  const data = {
+    ...raw,
+    deviceList: (raw.deviceList || []).filter(isVisible),
+    infraredRemoteList: (raw.infraredRemoteList || []).filter(isVisible),
+  };
+  const ids = new Set([...data.deviceList, ...data.infraredRemoteList].map(d => d.deviceId));
+  deviceCache = { at: Date.now(), data, ids };
   return data;
+}
+// 一覧に載っているデバイスだけ操作を許可する（非表示のデバイスを ID で直接狙われても拒否できる）
+async function isAllowedDevice(id) {
+  if (!ID_RE.test(id)) return false;
+  await getDevices();
+  return deviceCache.ids.has(id);
 }
 
 // 赤外線リモコンは状態を取得できないので、最後に送った操作を覚えておく（PC と iPad で共有）
@@ -119,8 +137,6 @@ async function readJson(req) {
   if (!raw) return {};
   try { return JSON.parse(raw); } catch { throw Object.assign(new Error('リクエストの JSON が不正です'), { status: 400 }); }
 }
-
-const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 
 const STATIC_FILES = {
   '/favicon.svg': 'image/svg+xml',
@@ -174,18 +190,19 @@ const server = createServer(async (req, res) => {
 
     // GET /api/last  最後に送った操作の一覧
     if (req.method === 'GET' && parts.length === 2 && parts[1] === 'last') {
-      return send(res, 200, lastCommands);
+      await getDevices();
+      return send(res, 200, Object.fromEntries(Object.entries(lastCommands).filter(([id]) => deviceCache.ids.has(id))));
     }
 
     // GET /api/devices/:id/status
     if (req.method === 'GET' && parts.length === 4 && parts[1] === 'devices' && parts[3] === 'status') {
-      if (!ID_RE.test(parts[2])) return send(res, 400, { error: 'bad id' });
+      if (!(await isAllowedDevice(parts[2]))) return send(res, 404, { error: 'device not found' });
       return send(res, 200, await backend(`/devices/${parts[2]}/status`));
     }
 
     // POST /api/devices/:id/commands  { command, parameter?, commandType? }
     if (req.method === 'POST' && parts.length === 4 && parts[1] === 'devices' && parts[3] === 'commands') {
-      if (!ID_RE.test(parts[2])) return send(res, 400, { error: 'bad id' });
+      if (!(await isAllowedDevice(parts[2]))) return send(res, 404, { error: 'device not found' });
       const { command, parameter = 'default', commandType = 'command' } = await readJson(req);
       if (typeof command !== 'string' || !command) return send(res, 400, { error: 'command is required' });
       if (command === 'unlock' && !UNLOCK_ENABLED) return send(res, 403, { error: '解錠は無効化されています（DISABLE_UNLOCK=1）' });
